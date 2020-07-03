@@ -1,14 +1,17 @@
 {% extends "igstatsapp/base.html" %}
 {% block content %}
+{% load crispy_forms_tags %}
 
 <div class="row mb-4">
     <div class="col">
         <a style="font-size: 2rem;">IGStats</a>
     </div>
 </div>
-<h5 class="text-success">Please select a folder to generate report</h5>
-<a href="" class="btn btn-info" role="button">
-    Upload folder
-</a>
+<h5 class="text-success">Please select files to generate report</h5>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="file_field" multiple="multiple">
+    <button type="submit">Upload</button>
+</form>
 {% endblock content %}
 
