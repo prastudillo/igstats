@@ -15,7 +15,7 @@ class Domain(models.Model):
 #edm data
 class EdmData(models.Model):
 
-    ticker = models.CharField(max_length=4, null=True)
+    ticker = models.CharField(max_length=5, null=True)
     domain = models.CharField(max_length=100)
     campaign_id = models.CharField(max_length=100, blank=False)
     recipient = models.CharField(max_length=100)

@@ -7,7 +7,7 @@ from django.contrib import messages #alerts
 from django.shortcuts import render
 from django.views.generic.edit import FormView
 from .forms import FileFieldForm
-
+from .models import EdmData
 import csv, io
 
 class FileFieldView(FormView):
@@ -24,9 +24,30 @@ class FileFieldView(FormView):
         if form.is_valid():
             for f in files:
                 print(f.name)
-
-                #csv is now read
+                
                 #import all data from csv to database
+                data_set = f.read().decode('UTF-8')
+                io_string = io.StringIO(data_set)
+                next(io_string)
+
+                for column in csv.reader(io_string, delimiter=',', quoting=csv.QUOTE_NONE):
+                    #checks if blank line
+                    if any(x.strip() for x in column):
+
+                        #saving data from csv to db
+                        created = EdmData.objects.create(
+                        ticker=column[0],
+                        domain=column[1],
+                        campaign_id=column[2],
+                        recipient=column[3],
+                        clicked=column[4],
+                        opened=column[5],
+                        delivered=column[6],
+                        bounced=column[7],
+                        complained=column[8],
+                        unsubscribed=column[9],
+                        trans_date=column[10]
+                )
 
             return self.form_valid(form)
         else:
