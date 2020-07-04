@@ -4,7 +4,7 @@ from django.db import models
 
 #campaign type data
 class CampaignType(models.Model):
-    ticker = models.CharField(max_length=4, null=True)
+    ticker = models.CharField(max_length=5, null=True)
     campaign_id = models.CharField(max_length=100, primary_key=True)
 
 #domain data
