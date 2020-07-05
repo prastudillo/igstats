@@ -42,4 +42,11 @@ class EdmData(models.Model):
     complained = models.PositiveIntegerField()
     unsubscribed = models.PositiveIntegerField()
     trans_date  = models.DateTimeField()
+    
+    total_count = models.IntegerField()
+
+    def save(self, *args, **kwargs):
+        self.total_count = sum(
+            [self.clicked, self.opened, self.delivered, self.bounced, self.complained, self.unsubscribed])
+        return super(EdmData, self).save(*args, **kwargs)
 

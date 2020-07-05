@@ -7,6 +7,7 @@ from django.contrib import messages #alerts
 from django.shortcuts import render
 from django.views.generic.edit import FormView
 from django.db import connection
+from django.db.models import Sum, Count
 from .forms import FileFieldForm
 from .models import CsvData, EdmData, CampaignType, Domain
 import csv, io
@@ -95,7 +96,7 @@ class FileFieldView(FormView):
                     bounced=csv_data[7],
                     complained=csv_data[8],
                     unsubscribed=csv_data[9],
-                    trans_date=csv_data[10]
+                    trans_date=csv_data[10],
                 )
 
             #remove all contents of csvdata table
@@ -125,47 +126,63 @@ def download_excel_report(request):
     #creating workbook
     wb = xlwt.Workbook(encoding='utf-8')
 
+    #dashboard sheet
     #adding sheet
-    ws = wb.add_sheet("sheet1")
+    dashboard = wb.add_sheet("Dashboard")
 
     # Sheet header, first row
     row_num = 0
 
-    font_style = xlwt.XFStyle()
-    font_style.font.bold = True
+    #for headers
+    font_style_header = xlwt.XFStyle()
+    font_style_header.font.bold = True
 
     #for timestamp
     date_format = xlwt.XFStyle()
     date_format.num_format_str = 'dd/mm/yy'
-    #column header
-    columns = ['Column1', 'Column2', 'Column 3', 'Column4',]
-
-    #write column headers in sheet
-
-    for col_num in range(len(columns)):
-        ws.write(row_num, col_num, columns[col_num],font_style)
 
     # Sheet body, remaining rows
     font_style = xlwt.XFStyle()
 
-    #get data from db
-    data = EdmData.objects.all()[:100]
+    dashboard.write(0,0,"Top 25 Campaigns",font_style_header) #add dates
+    row_num = row_num + 1
 
-    for my_row in data:
+    #dashboard column header
+    dashboard_columns = ['Count', 'Clicked', 'Opened', 'Delivered', 'Bounced', 'Unsubscribed',]
+    for col_num in range(len(dashboard_columns)):
+        dashboard.write(row_num, col_num, dashboard_columns[col_num], font_style_header)
+
+    #By Campaign sheet
+    by_campaign = wb.add_sheet("By Campaign")
+    row_num = 0
+    by_campaign_headers = ['Campaign', 'Total Count', 'Total Clicked', 'Total Opened', 'Total Delivered', 'Total Bounced', 'Total Complained', 'Total Unsubscribed',]
+    for col_num in range(len(by_campaign_headers)):
+        by_campaign.write(row_num, col_num, by_campaign_headers[col_num], font_style_header)
+
+    #get data
+    campaigntypes = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('edmdata__total_count')
+    
+    for campaigntype in campaigntypes:
         row_num = row_num + 1
-        ws.write(row_num, 0, my_row.ticker, font_style)
-        ws.write(row_num, 1, my_row.domain, font_style)
-        ws.write(row_num, 2, my_row.campaign_id, font_style)
-        ws.write(row_num, 3, my_row.recipient, font_style)
-        ws.write(row_num, 4, my_row.clicked, font_style)
-        ws.write(row_num, 5, my_row.opened, font_style)
-        ws.write(row_num, 6, my_row.delivered, font_style)
-        ws.write(row_num, 7, my_row.bounced, font_style)
-        ws.write(row_num, 8, my_row.complained, font_style)
-        ws.write(row_num, 9, my_row.unsubscribed, font_style)
-        ws.write(row_num, 10, my_row.trans_date, date_format)
+        by_campaign.write(row_num,0,campaigntype.campaign_id)
+        by_campaign.write(row_num,1,campaigntype.total_count)
+        by_campaign.write(row_num,2,campaigntype.clicked_count)
+        by_campaign.write(row_num,3,campaigntype.opened_count)
+        by_campaign.write(row_num,4,campaigntype.delivered_count)
+        by_campaign.write(row_num,5,campaigntype.bounced_count)
+        by_campaign.write(row_num,6,campaigntype.complained_count)
+        by_campaign.write(row_num,7,campaigntype.unsubscribed_count)
 
-    #FORMAT NOW THE OUTPUT
+    #By Email Sheet
+    by_email = wb.add_sheet("By Email")
+
+
+
+    #Top 25 Domain Sheet
+    top25domain = wb.add_sheet("Top 25 Domain")
+
+    #Monthly Overall Top 25 Sheet    
+    monthlytop25domain = wb.add_sheet("Monthly Overall Top 25")
 
     wb.save(response)
 
