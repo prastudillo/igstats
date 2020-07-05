@@ -166,7 +166,7 @@ def download_excel_report(request):
 
 
     #Top 25 count
-    top25count = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count")).order_by('edmdata__total_count')[:25]
+    top25count = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count")).order_by('total_count')[:25]
 
     for camptype in top25count:
         row_num = row_num + 1
@@ -225,10 +225,6 @@ def download_excel_report(request):
         row_num_ticker = row_num_ticker + 1
         dashboard.write(row_num_ticker,4,camptype.ticker)
 
-
-
-
-
     #By Campaign sheet
     by_campaign = wb.add_sheet("By Campaign")
     row_num = 0
@@ -237,7 +233,7 @@ def download_excel_report(request):
         by_campaign.write(row_num, col_num, by_campaign_headers[col_num], font_style_header)
 
     #get data
-    campaigntypes = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('edmdata__total_count')
+    campaigntypes = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('total_count')
     
     for campaigntype in campaigntypes:
         row_num = row_num + 1
