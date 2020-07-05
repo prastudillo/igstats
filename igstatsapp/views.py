@@ -8,10 +8,12 @@ from django.shortcuts import render
 from django.views.generic.edit import FormView
 from django.db import connection
 from .forms import FileFieldForm
-from .models import EdmData, CampaignType, Domain
+from .models import CsvData, EdmData, CampaignType, Domain
 import csv, io
 import xlwt
 
+
+#for uploading multiples files
 class FileFieldView(FormView):
     form_class = FileFieldForm
     template_name = 'igstatsapp/home.html'  # Replace with your template.
@@ -28,6 +30,7 @@ class FileFieldView(FormView):
                 print(f.name)
                 
                 #import all data from csv to database
+                #for staging
                 data_set = f.read().decode('UTF-8')
                 io_string = io.StringIO(data_set)
                 next(io_string)
@@ -39,7 +42,7 @@ class FileFieldView(FormView):
                         
                         
                         #saving data from csv to db ... try bulk create for faster queries
-                        created = EdmData.objects.create(
+                        created = CsvData.objects.create(
                         ticker=column[0],
                         domain=column[1],
                         campaign_id=column[2],
@@ -55,12 +58,12 @@ class FileFieldView(FormView):
                 )
             
             #add data to campaign type table
-            campaign_types = EdmData.objects.values_list('ticker','campaign_id').distinct()
+            campaign_types = CsvData.objects.values_list('ticker','campaign_id').distinct()
             for camp_type in campaign_types:
                 created_camp_type = CampaignType.objects.create(ticker=camp_type[0], campaign_id=camp_type[1])
 
             #add data to domain table
-            recipient_list = EdmData.objects.values_list('recipient',flat=True)
+            recipient_list = CsvData.objects.values_list('recipient',flat=True)
             email_domain_list = []
             for recipient in recipient_list:
                 email_domain_str = "@" + recipient.split("@")[1]
@@ -71,10 +74,32 @@ class FileFieldView(FormView):
 
                 created_domain = Domain.objects.create(email_domain=email_domain)
 
-            #create edm data with foreign keys
+            #add data to edm table with foreign keys
+            csv_data_list = CsvData.objects.values_list('ticker','domain','campaign_id',
+            'recipient','clicked','opened','delivered','bounced','complained','unsubscribed','trans_date')
 
-            
+            for csv_data in csv_data_list:
+                
+                #for email_domain
+                email_domain_str= "@"  + csv_data[3].split("@")[1]
 
+                #insertion of data into edmdata table
+                created_edm_data = EdmData.objects.create(
+                    ticker=csv_data[0],
+                    domain=csv_data[1],
+                    campaign_id=CampaignType.objects.get(campaign_id=csv_data[2]),
+                    recipient=Domain.objects.get(email_domain=email_domain_str),
+                    clicked=csv_data[4],
+                    opened=csv_data[5],
+                    delivered=csv_data[6],
+                    bounced=csv_data[7],
+                    complained=csv_data[8],
+                    unsubscribed=csv_data[9],
+                    trans_date=csv_data[10]
+                )
+
+            #remove all contents of csvdata table
+            CsvData.objects.all().delete()
 
             return self.form_valid(form)
         else:
