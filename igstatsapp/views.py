@@ -130,8 +130,14 @@ def download_excel_report(request):
     #adding sheet
     dashboard = wb.add_sheet("Dashboard")
 
+    #change width of each cell
+    for colx in range(0,6):
+        width = 40*256
+        dashboard.col(colx).width = width
+
     # Sheet header, first row
     row_num = 0
+    row_num_ticker = 29
 
     #for headers
     font_style_header = xlwt.XFStyle()
@@ -145,12 +151,83 @@ def download_excel_report(request):
     font_style = xlwt.XFStyle()
 
     dashboard.write(0,0,"Top 25 Campaigns",font_style_header) #add dates
+    dashboard.write(29,0,"Top 25 Tickers",font_style_header)
+
     row_num = row_num + 1
+    row_num_ticker = row_num_ticker + 1
 
     #dashboard column header
     dashboard_columns = ['Count', 'Clicked', 'Opened', 'Delivered', 'Bounced', 'Unsubscribed',]
     for col_num in range(len(dashboard_columns)):
         dashboard.write(row_num, col_num, dashboard_columns[col_num], font_style_header)
+
+        #for ticker
+        dashboard.write(row_num_ticker, col_num, dashboard_columns[col_num], font_style_header)
+
+
+    #Top 25 count
+    top25count = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count")).order_by('edmdata__total_count')[:25]
+
+    for camptype in top25count:
+        row_num = row_num + 1
+        dashboard.write(row_num,0,camptype.campaign_id)
+
+        #for ticker
+        row_num_ticker = row_num_ticker + 1
+        dashboard.write(row_num_ticker,0,camptype.ticker)
+
+    #Top 25 clicked
+    top25clicked = CampaignType.objects.all().annotate(total_clicked=Sum("edmdata__clicked")).order_by('total_clicked')[:25]
+
+    row_num = 1
+    row_num_ticker = 30
+    for camptype in top25clicked:
+        row_num = row_num + 1
+        dashboard.write(row_num,1,camptype.campaign_id)
+
+        #for ticker
+        row_num_ticker = row_num_ticker + 1
+        dashboard.write(row_num_ticker,1,camptype.ticker)
+
+    #Top 25 opened
+    row_num = 1
+    row_num_ticker = 30
+    top25opened = CampaignType.objects.all().annotate(total_opened=Sum("edmdata__opened")).order_by('total_opened')[:25]
+    for camptype in top25opened:
+        row_num = row_num + 1
+        dashboard.write(row_num,2,camptype.campaign_id)
+
+        #for ticker
+        row_num_ticker = row_num_ticker + 1
+        dashboard.write(row_num_ticker,2,camptype.ticker)
+
+    #Top 25 Bounced
+    row_num = 1
+    row_num_ticker = 30
+    top25bounced = CampaignType.objects.all().annotate(total_bounced=Sum("edmdata__bounced")).order_by('total_bounced')[:25]
+    for camptype in top25bounced:
+        row_num = row_num + 1
+        dashboard.write(row_num,3,camptype.campaign_id)
+
+         #for ticker
+        row_num_ticker = row_num_ticker + 1
+        dashboard.write(row_num_ticker,3,camptype.ticker)
+
+    #Top 25 Unsubscribed
+    row_num = 1
+    row_num_ticker = 30
+    top25unsubscribed = CampaignType.objects.all().annotate(total_unsubscribed=Sum("edmdata__unsubscribed")).order_by('total_unsubscribed')[:25]
+    for camptype in top25unsubscribed:
+        row_num = row_num + 1
+        dashboard.write(row_num,4,camptype.campaign_id)
+
+        #for ticker
+        row_num_ticker = row_num_ticker + 1
+        dashboard.write(row_num_ticker,4,camptype.ticker)
+
+
+
+
 
     #By Campaign sheet
     by_campaign = wb.add_sheet("By Campaign")
