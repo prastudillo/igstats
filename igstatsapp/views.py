@@ -89,6 +89,7 @@ class FileFieldView(FormView):
                     ticker=csv_data[0],
                     domain=csv_data[1],
                     campaign_id=CampaignType.objects.get(campaign_id=csv_data[2]),
+                    recipient_email=csv_data[3],
                     recipient=Domain.objects.get(email_domain=email_domain_str),
                     clicked=csv_data[4],
                     opened=csv_data[5],
@@ -231,7 +232,12 @@ def download_excel_report(request):
     by_campaign_headers = ['Campaign', 'Total Count', 'Total Clicked', 'Total Opened', 'Total Delivered', 'Total Bounced', 'Total Complained', 'Total Unsubscribed',]
     for col_num in range(len(by_campaign_headers)):
         by_campaign.write(row_num, col_num, by_campaign_headers[col_num], font_style_header)
-
+    
+    #change width of cell
+    for colx in range(0,8):
+        width = 30*256
+        by_campaign.col(colx).width = width
+ 
     #get data
     campaigntypes = CampaignType.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('-total_count')
     
@@ -248,12 +254,58 @@ def download_excel_report(request):
 
     #By Email Sheet
     by_email = wb.add_sheet("By Email")
+    row_num = 0
+    by_email_headers = ['Email', 'Domain', 'Total Count', 'Total Clicked','Total Opened', 'Total Delivered', 'Total Bounced', 'Total Complained', 'Total Unsubscribed',]
+    for col_num in range(len(by_email_headers)):
+        by_email.write(row_num, col_num, by_email_headers[col_num], font_style_header)
 
+    #change width of cell
+    for colx in range(0,9):
+        width = 30*256
+        by_email.col(colx).width = width
+
+    #get data
+    by_email_list =EdmData.objects.all().annotate(total_overall_count=Sum("total_count"),clicked_count = Sum("clicked",),opened_count= Sum("opened"),delivered_count=Sum("delivered"),bounced_count=Sum("bounced"),complained_count=Sum("complained"),unsubscribed_count=Sum("unsubscribed")).order_by('-total_count')
+
+    for email in by_email_list:
+        row_num = row_num + 1
+        by_email.write(row_num,0,email.recipient_email)
+        by_email.write(row_num,1,email.recipient_id)
+        by_email.write(row_num,2,email.total_overall_count)
+        by_email.write(row_num,3,email.clicked_count)
+        by_email.write(row_num,4,email.opened_count)
+        by_email.write(row_num,5,email.delivered_count)
+        by_email.write(row_num,6,email.bounced_count)
+        by_email.write(row_num,7,email.complained_count)
+        by_email.write(row_num,8,email.unsubscribed_count)
+
+    #write data
 
 
     #Top 25 Domain Sheet
     top25domain = wb.add_sheet("Top 25 Domain")
+    #up to latest date 
+    top25domain.write(1,1,"Overall Top 25",font_style_header) #add dates
+    row_num = 1
+    top25domain_headers = ['Domain','Count','Clicked','Opened','Delivered','Bounced','Complained','Unsubscribed']
+    row_num = row_num + 1
 
+    for col_num in range(len(top25domain_headers)):
+        top25domain.write(row_num,col_num+1,top25domain_headers[col_num],font_style_header)
+
+    top25domain_list = Domain.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('-total_count')[:25]
+
+    for domain in top25domain_list:
+        row_num = row_num + 1
+        top25domain.write(row_num,1,domain.email_domain)
+        top25domain.write(row_num,2,domain.total_count)
+        top25domain.write(row_num,3,domain.clicked_count)
+        top25domain.write(row_num,4,domain.opened_count)
+        top25domain.write(row_num,5,domain.delivered_count)
+        top25domain.write(row_num,6,domain.bounced_count)
+        top25domain.write(row_num,7,domain.complained_count)
+        top25domain.write(row_num,8,domain.unsubscribed_count)
+        
     #Monthly Overall Top 25 Sheet    
     monthlytop25domain = wb.add_sheet("Monthly Overall Top 25")
 

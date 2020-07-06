@@ -34,6 +34,7 @@ class EdmData(models.Model):
     ticker = models.CharField(max_length=5, null=True)
     domain = models.CharField(max_length=100)
     campaign_id = models.ForeignKey(CampaignType,on_delete=models.CASCADE)
+    recipient_email = models.CharField(max_length=100)
     recipient = models.ForeignKey(Domain,on_delete=models.CASCADE)
     clicked = models.PositiveIntegerField()
     opened = models.PositiveIntegerField()
