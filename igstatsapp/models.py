@@ -11,10 +11,10 @@ class CampaignType(models.Model):
 class Domain(models.Model):
     email_domain = models.CharField(max_length=100, primary_key=True)
 
-# #email_recipient_data
-# class Recipient(models.Model):
-#     recipient_email = models.CharField(max_length=100, primary_key)
-
+#email_recipient_data
+class Recipient(models.Model):
+    recipient_email = models.CharField(max_length=100, primary_key=True)
+    domain = models.CharField(max_length=100)
 
 # Csv_data; Staging table
 class CsvData(models.Model):
@@ -39,7 +39,7 @@ class EdmData(models.Model):
     ticker = models.CharField(max_length=5, null=True)
     domain = models.CharField(max_length=100)
     campaign_id = models.ForeignKey(CampaignType,on_delete=models.CASCADE)
-    recipient_email = models.CharField(max_length=100)
+    recipient_email = models.ForeignKey(Recipient,on_delete=models.CASCADE)
     recipient = models.ForeignKey(Domain,on_delete=models.CASCADE)
     clicked = models.PositiveIntegerField()
     opened = models.PositiveIntegerField()

@@ -10,7 +10,7 @@ from django.db import connection
 from django.db.models import Sum, Count
 from django.db.models.functions import ExtractMonth, ExtractYear, ExtractDay
 from .forms import FileFieldForm
-from .models import CsvData, EdmData, CampaignType, Domain
+from .models import CsvData, EdmData, CampaignType, Domain, Recipient
 import calendar
 import csv, io
 import xlwt
@@ -65,6 +65,12 @@ class FileFieldView(FormView):
             for camp_type in campaign_types:
                 created_camp_type = CampaignType.objects.create(ticker=camp_type[0], campaign_id=camp_type[1])
 
+            #add data to recipient table
+            recipient_list = CsvData.objects.values_list('recipient').distinct()
+            for recipient in recipient_list:
+                email_domain_str = "@" + recipient[0].split("@")[1]
+                created_recipient = Recipient.objects.create(recipient_email=recipient[0],domain=email_domain_str)
+
             #add data to domain table
             recipient_list = CsvData.objects.values_list('recipient',flat=True)
             email_domain_list = []
@@ -91,7 +97,7 @@ class FileFieldView(FormView):
                     ticker=csv_data[0],
                     domain=csv_data[1],
                     campaign_id=CampaignType.objects.get(campaign_id=csv_data[2]),
-                    recipient_email=csv_data[3],
+                    recipient_email=Recipient.objects.get(recipient_email=csv_data[3]),
                     recipient=Domain.objects.get(email_domain=email_domain_str),
                     clicked=csv_data[4],
                     opened=csv_data[5],
@@ -109,8 +115,6 @@ class FileFieldView(FormView):
         else:
             return self.form_invalid(form)
 
-#create a new view that executes SQL directly
-#using connection
 def home_view(request):
     return render(request, 'igstatsapp/home.html')
 
@@ -312,13 +316,13 @@ def download_excel_report(request):
         width = 30*256
         by_email.col(colx).width = width
 
-    #get data
-    by_email_list =EdmData.objects.all().annotate(total_overall_count=Sum("total_count"),clicked_count = Sum("clicked",),opened_count= Sum("opened"),delivered_count=Sum("delivered"),bounced_count=Sum("bounced"),complained_count=Sum("complained"),unsubscribed_count=Sum("unsubscribed")).order_by('-total_count')
+    # get data
+    by_email_list =Recipient.objects.all().annotate(total_overall_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked"),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('-total_overall_count')
 
     for email in by_email_list:
         row_num = row_num + 1
         by_email.write(row_num,0,email.recipient_email)
-        by_email.write(row_num,1,email.recipient_id)
+        by_email.write(row_num,1,email.domain)
         by_email.write(row_num,2,email.total_overall_count)
         by_email.write(row_num,3,email.clicked_count)
         by_email.write(row_num,4,email.opened_count)
@@ -353,7 +357,7 @@ def download_excel_report(request):
         by_email.write(row_num, col_num+7, month_unsubscribed_str,font_style_header)
 
 
-        by_email_month = EdmData.objects.all().annotate(month=ExtractMonth('trans_date'),year=ExtractYear('trans_date'),monthly_count=Sum('total_count'),clicked_count = Sum("clicked"),opened_count= Sum("opened"),delivered_count=Sum("delivered"),bounced_count=Sum("bounced"),complained_count=Sum("complained"),unsubscribed_count=Sum("unsubscribed")).order_by('-monthly_count').filter(month=email_month['month'],year=email_month['year'])
+        by_email_month = Recipient.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),clicked_count = Sum("edmdata__clicked"),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('-monthly_count').filter(month=email_month['month'],year=email_month['year'])
 
         for email in by_email_month:
             row_num = row_num + 1
@@ -366,9 +370,6 @@ def download_excel_report(request):
             by_email.write(row_num,col_num+7,email.unsubscribed_count)
 
         col_num = col_num + 7
-
-        #something is still not right add email recipient schema
-
 
 
     #Top 25 Domain Sheet
