@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.views.generic.edit import FormView
 from django.db import connection
 from django.db.models import Sum, Count
-from django.db.models.functions import ExtractMonth, ExtractYear
+from django.db.models.functions import ExtractMonth, ExtractYear, ExtractDay
 from .forms import FileFieldForm
 from .models import CsvData, EdmData, CampaignType, Domain
 import calendar
@@ -296,6 +296,9 @@ def download_excel_report(request):
         by_campaign.write(row_num,5,campaigntype.bounced_count)
         by_campaign.write(row_num,6,campaigntype.complained_count)
         by_campaign.write(row_num,7,campaigntype.unsubscribed_count)
+    
+    #add per month 
+
 
     #By Email Sheet
     by_email = wb.add_sheet("By Email")
@@ -305,7 +308,7 @@ def download_excel_report(request):
         by_email.write(row_num, col_num, by_email_headers[col_num], font_style_header)
 
     #change width of cell
-    for colx in range(0,9):
+    for colx in range(0,25):
         width = 30*256
         by_email.col(colx).width = width
 
@@ -324,64 +327,239 @@ def download_excel_report(request):
         by_email.write(row_num,7,email.complained_count)
         by_email.write(row_num,8,email.unsubscribed_count)
 
+    #get the per month and render it
+    by_email_month = EdmData.objects.all().annotate(month=ExtractMonth('trans_date'),year=ExtractYear('trans_date')).order_by('month','year').values('month','year').distinct()
+
+   
+    col_num = 8 #after total unsubscribed
+    for email_month in by_email_month:
+        row_num = 0
+
+        #writing the column headers per month
+        month_count_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Count"
+        month_clicked_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Clicked"  
+        month_opened_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Opened"
+        month_delivered_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Delivered"
+        month_bounced_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Bounced" 
+        month_complained_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Complained"
+        month_unsubscribed_str = str(calendar.month_name[email_month['month']]) + " " + str(email_month['year']) + " Unsubscribed"
+
+        by_email.write(row_num, col_num+1, month_count_str, font_style_header)
+        by_email.write(row_num, col_num+2, month_clicked_str, font_style_header)
+        by_email.write(row_num, col_num+3, month_opened_str,font_style_header)
+        by_email.write(row_num, col_num+4, month_delivered_str,font_style_header)
+        by_email.write(row_num, col_num+5, month_bounced_str,font_style_header)
+        by_email.write(row_num, col_num+6, month_complained_str,font_style_header)
+        by_email.write(row_num, col_num+7, month_unsubscribed_str,font_style_header)
+
+
+        by_email_month = EdmData.objects.all().annotate(month=ExtractMonth('trans_date'),year=ExtractYear('trans_date'),monthly_count=Sum('total_count'),clicked_count = Sum("clicked"),opened_count= Sum("opened"),delivered_count=Sum("delivered"),bounced_count=Sum("bounced"),complained_count=Sum("complained"),unsubscribed_count=Sum("unsubscribed")).order_by('-monthly_count').filter(month=email_month['month'],year=email_month['year'])
+
+        for email in by_email_month:
+            row_num = row_num + 1
+            by_email.write(row_num,col_num+1,email.monthly_count)
+            by_email.write(row_num,col_num+2,email.clicked_count)
+            by_email.write(row_num,col_num+3,email.opened_count)
+            by_email.write(row_num,col_num+4,email.delivered_count)
+            by_email.write(row_num,col_num+5,email.bounced_count)
+            by_email.write(row_num,col_num+6,email.complained_count)
+            by_email.write(row_num,col_num+7,email.unsubscribed_count)
+
+        col_num = col_num + 7
+
+        #something is still not right add email recipient schema
+
+
 
     #Top 25 Domain Sheet
     top25domain = wb.add_sheet("Top 25 Domain")
+    
+    #up to latest date
+    #get the latest date
+    latest_date = EdmData.objects.order_by('-trans_date').first()
+    latest_date_str = latest_date.trans_date.strftime("%B %d %Y")
+    top25domain.write(1,0,"Up to " + latest_date_str, font_style_header)
 
-    # edmdata_month = CampaignType.objects.annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),).order_by('month','year').values('month','year').annotate(monthly_count=Sum('edmdata__total_count'),monthly_clicked=Sum('edmdata__clicked'),monthly_opened=Sum('edmdata__opened'),monthly_unsubscribed=Sum('edmdata__unsubscribed'),monthly_delivered=Sum('edmdata__delivered'),monthly_bounced=Sum('edmdata__bounced'),monthly_complained=Sum('edmdata__complained')).values('month','year','monthly_count','monthly_clicked','monthly_opened','monthly_unsubscribed','monthly_delivered','monthly_bounced','monthly_complained')
+    #overall top 25 first
+    top25domain.write(2,1,"Overall Top 25", font_style_header)
 
-    #overall top 5 first
+    domain_top = Domain.objects.annotate(total_overall_count=Sum('edmdata__total_count'),total_clicked=Sum('edmdata__clicked'),total_opened=Sum('edmdata__opened'),total_delivered=Sum('edmdata__delivered'),total_bounced=Sum('edmdata__bounced'),total_complained=Sum('edmdata__complained'),total_unsubscribed=Sum('edmdata__unsubscribed')).order_by('-total_overall_count')[:25]
 
+    row_num = 3
+    # headers
+    top_domain_headers = ['Domain', 'Count', 'Clicked','Opened', 'Delivered', 'Bounced', 'Complained', 'Unsubscribed',]
 
+    for col_num in range(len(top_domain_headers)):
+        top25domain.write(row_num, col_num+1, top_domain_headers[col_num], font_style_column_header)
 
-
-    # #per month year first then top 25 per month year
-    # domain_month = Domain.objects.annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),).values('month','year').annotate(monthly_count=Sum('edmdata__total_count'),monthly_clicked=Sum('edmdata__clicked'),monthly_opened=Sum('edmdata__opened'),monthly_unsubscribed=Sum('edmdata__unsubscribed'),monthly_delivered=Sum('edmdata__delivered'),monthly_bounced=Sum('edmdata__bounced'),monthly_complained=Sum('edmdata__complained')).order_by('month','year','-monthly_count').values('email_domain', 'month','year','monthly_count','monthly_clicked','monthly_opened','monthly_unsubscribed','monthly_delivered','monthly_bounced','monthly_complained')
-
-    # # topdomain = domain_month.order_by('-monthly_count')[:25]
-
-    # row_num = 1
-    # for domain in domain_month:
-    #     row_num = row_num + 1
-
-    #     #month yr string
-    #     month_yr_str = str(calendar.month_name[domain['month']]) + " " + str(domain['year'])
-
-    #     top25domain.write(row_num,0,month_yr_str)
-    #     top25domain.write(row_num,2,domain['email_domain'])
-    #     top25domain.write(row_num,3,domain['monthly_count'])
-    #     top25domain.write(row_num,4,domain['monthly_count'])
-    #     top25domain.write(row_num,5,domain['monthly_count'])
-    #     top25domain.write(row_num,6,domain['monthly_count'])
-    #     top25domain.write(row_num,7,domain['monthly_count'])
-    #     top25domain.write(row_num,8,domain['monthly_count'])
-
-        
-    #up to latest date 
-    # top25domain.write(1,1,"Overall Top 25",font_style_header) #add dates
-    # row_num = 1
-    # top25domain_headers = ['Domain','Count','Clicked','Opened','Delivered','Bounced','Complained','Unsubscribed']
+    #write data of top 25 overall
     # row_num = row_num + 1
+    for domain in domain_top:
+        row_num = row_num + 1
+        top25domain.write(row_num,1,domain.email_domain)
+        top25domain.write(row_num,2,domain.total_overall_count)
+        top25domain.write(row_num,3,domain.total_clicked)
+        top25domain.write(row_num,4,domain.total_opened)
+        top25domain.write(row_num,5,domain.total_delivered)
+        top25domain.write(row_num,6,domain.total_bounced)
+        top25domain.write(row_num,7,domain.total_complained)
+        top25domain.write(row_num,8,domain.total_unsubscribed)
 
-    # for col_num in range(len(top25domain_headers)):
-    #     top25domain.write(row_num,col_num+1,top25domain_headers[col_num],font_style_header)
+    row_num = row_num + 2
+    #per month
+    #query the months
+    #get the per month and render it
+    domain_month = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date')).order_by('month','year').values('month','year').distinct()
 
-    # top25domain_list = Domain.objects.all().annotate(total_count=Sum("edmdata__total_count"),clicked_count = Sum("edmdata__clicked",),opened_count= Sum("edmdata__opened"),delivered_count=Sum("edmdata__delivered"),bounced_count=Sum("edmdata__bounced"),complained_count=Sum("edmdata__complained"),unsubscribed_count=Sum("edmdata__unsubscribed")).order_by('-total_count')[:25]
 
+    for month in domain_month:
 
-    # for domain in top25domain_list:
-    #     row_num = row_num + 1
-    #     top25domain.write(row_num,1,domain.email_domain)
-    #     top25domain.write(row_num,2,domain.total_count)
-    #     top25domain.write(row_num,3,domain.clicked_count)
-    #     top25domain.write(row_num,4,domain.opened_count)
-    #     top25domain.write(row_num,5,domain.delivered_count)
-    #     top25domain.write(row_num,6,domain.bounced_count)
-    #     top25domain.write(row_num,7,domain.complained_count)
-    #     top25domain.write(row_num,8,domain.unsubscribed_count)
-        
+        month_yr_str = str(calendar.month_name[month['month']]) + "-" + str(month['year'])
+
+        #date and year of table 
+        top25domain.write(row_num,0,month_yr_str,font_style_header)
+        row_num = row_num + 1
+
+        #table headers
+        for col_num in range(len(top_domain_headers)):
+            top25domain.write(row_num, col_num+1, top_domain_headers[col_num], font_style_column_header)
+
+        #data
+        top_domain_month = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_count').filter(month=month['month'],year=month['year'])[:25]
+
+        #render monthly data to table
+        for domain in top_domain_month:
+            row_num = row_num + 1
+            top25domain.write(row_num,1,domain.email_domain)
+            top25domain.write(row_num,2,domain.monthly_count)
+            top25domain.write(row_num,3,domain.monthly_clicked)
+            top25domain.write(row_num,4,domain.monthly_opened)
+            top25domain.write(row_num,5,domain.monthly_delivered)
+            top25domain.write(row_num,6,domain.monthly_bounced)
+            top25domain.write(row_num,7,domain.monthly_complained)
+            top25domain.write(row_num,8,domain.monthly_unsubscribed)
+
+        row_num = row_num + 2
+    
+
     #Monthly Overall Top 25 Sheet    
     monthlytop25domain = wb.add_sheet("Monthly Overall Top 25")
+
+    #Domain List
+    monthlytop25domain.write(0,1,"Domain List", font_style_header)
+    monthlytop25domain.write(1,1,"Data Until " + latest_date_str, font_style_header)
+
+    row_num = 4
+    #latest date
+
+    #for each month
+    for month in domain_month:
+        
+        
+        month_yr_str = str(calendar.month_name[month['month']]) + "-" + str(month['year'])
+
+        monthlytop25domain.write(row_num,0,month_yr_str,font_style_header)
+        row_num = row_num + 1
+        monthlytop25domain.write(row_num,0,"Overall Top 25",font_style_header)
+        row_num = row_num + 1
+        starting_row = row_num 
+
+        #counter variables
+        rem_row = 0 #remaining rows
+        total_rows = 25
+
+        # count header
+        monthlytop25domain.write_merge(row_num,row_num,1,2,"Count", font_style_column_header)
+
+        #count
+        top_domain_count = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_count').filter(month=month['month'],year=month['year'])[:25]
+        
+        for domain in top_domain_count:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,1,domain.email_domain)
+            monthlytop25domain.write(row_num,2,domain.monthly_count)
+        
+
+        #clicked
+
+        top_domain_clicked = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_clicked').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        # clicked header
+        monthlytop25domain.write_merge(row_num,row_num,4,5,"Clicked", font_style_column_header)
+
+        for domain in top_domain_clicked:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,4,domain.email_domain)
+            monthlytop25domain.write(row_num,5,domain.monthly_clicked)
+
+
+        # row_num = row_num + (total_rows-rem_row)
+
+        # opened
+        top_domain_opened = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_opened').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        #opened header
+        monthlytop25domain.write_merge(row_num,row_num,7,8,"Opened", font_style_column_header)
+
+        for domain in top_domain_opened:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,7,domain.email_domain)
+            monthlytop25domain.write(row_num,8,domain.monthly_opened)
+        
+        #delivered
+        top_domain_delivered = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_delivered').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        #delivered header
+        monthlytop25domain.write_merge(row_num,row_num,10,11,"Delivered", font_style_column_header)
+
+        for domain in top_domain_delivered:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,10,domain.email_domain)
+            monthlytop25domain.write(row_num,11,domain.monthly_delivered)
+
+        #bounced
+        top_domain_bounced = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_bounced').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        #bounced header
+        monthlytop25domain.write_merge(row_num,row_num,13,14,"Bounced", font_style_column_header)
+
+        for domain in top_domain_bounced:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,13,domain.email_domain)
+            monthlytop25domain.write(row_num,14,domain.monthly_bounced)
+
+        #complained
+        top_domain_complained = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_complained').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        #complained header
+        monthlytop25domain.write_merge(row_num,row_num,16,17,"Complained", font_style_column_header)
+
+        for domain in top_domain_complained:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,16,domain.email_domain)
+            monthlytop25domain.write(row_num,17,domain.monthly_complained)
+
+        #unsubscribed
+        top_domain_unsubscribed = Domain.objects.all().annotate(month=ExtractMonth('edmdata__trans_date'),year=ExtractYear('edmdata__trans_date'),monthly_count=Sum('edmdata__total_count'),monthly_clicked = Sum("edmdata__clicked"),monthly_opened= Sum("edmdata__opened"),monthly_delivered=Sum("edmdata__delivered"),monthly_bounced=Sum("edmdata__bounced"),monthly_complained=Sum("edmdata__complained"),monthly_unsubscribed=Sum("edmdata__unsubscribed")).order_by('-monthly_unsubscribed').filter(month=month['month'],year=month['year'])[:25]
+
+        row_num = starting_row
+        #unsubscribed header
+        monthlytop25domain.write_merge(row_num,row_num,19,20,"Unsubscribed", font_style_column_header)
+
+        for domain in top_domain_unsubscribed:
+            row_num = row_num + 1
+            monthlytop25domain.write(row_num,19,domain.email_domain)
+            monthlytop25domain.write(row_num,20,domain.monthly_unsubscribed)
+    
+        row_num = row_num + 2
+
+
+
 
     wb.save(response)
 

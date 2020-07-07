@@ -11,6 +11,10 @@ class CampaignType(models.Model):
 class Domain(models.Model):
     email_domain = models.CharField(max_length=100, primary_key=True)
 
+# #email_recipient_data
+# class Recipient(models.Model):
+#     recipient_email = models.CharField(max_length=100, primary_key)
+
 
 # Csv_data; Staging table
 class CsvData(models.Model):
@@ -26,6 +30,7 @@ class CsvData(models.Model):
     complained = models.PositiveIntegerField()
     unsubscribed = models.PositiveIntegerField()
     trans_date  = models.DateTimeField()
+
 
 
 #edm data
